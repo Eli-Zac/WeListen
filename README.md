@@ -14,7 +14,7 @@ synchronises *what* is playing, *where* in the track, and *what comes next*.
 ## Status
 
 **Planning.** No code has been written yet. This repository currently contains the design
-documents that the implementation will follow. Start here:
+documents that the implementation will follow, and the tracked checklist below. Start here:
 
 | Document | What it covers |
 | --- | --- |
@@ -23,6 +23,96 @@ documents that the implementation will follow. Start here:
 | [`docs/SYNC.md`](docs/SYNC.md) | The clock-sync and drift-correction algorithm — the hard part |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Phased milestones from spike to Chrome Web Store listing |
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Decisions made, with reasoning, and the questions still open |
+
+## Next steps
+
+Ordered. Detail and exit criteria for every phase are in
+[`docs/ROADMAP.md`](docs/ROADMAP.md); this is the tracking view.
+
+### Blocked on a human, not on code
+
+- [ ] Set `main` as the repository's default branch (Settings → Branches)
+- [ ] Pick a licence and add `LICENSE` — open question Q1 in [`docs/DECISIONS.md`](docs/DECISIONS.md)
+- [ ] Confirm a Cloudflare account is available, and **check the current plan requirements
+      for Durable Objects** before committing to D1 — this is the one cost assumption in the
+      whole design that has not been verified
+- [ ] Form a position on the YouTube Terms of Service (Q2) — not a blocker for building,
+      is a blocker for promoting
+- [ ] Decide the room size cap to start with (Q4)
+
+### Phase 0 — spike YouTube Music's internals ← **this is the actual next work**
+
+Throwaway code in `tools/probe/`. Findings land in `docs/probe-findings.md`. Two of these
+answers can change the architecture, which is why nothing else starts first.
+
+- [ ] Scaffold `tools/probe/` — bookmarklet + scratch extension, no build step
+- [ ] Confirm `#movie_player` exposes `seekTo` / `getCurrentTime` / `getPlayerState` /
+      `getVideoData` / `loadVideoById`; measure `getCurrentTime()` resolution and jitter
+- [ ] **Does `setPlaybackRate()` honour 1.02, or snap to presets?** Decides whether the
+      inaudible drift correction in [`docs/SYNC.md`](docs/SYNC.md) §3 ships, or falls back
+      to seek-only
+- [ ] **Can we `dispatch()` a queue mutation to `ytmusic-app.store` and have the UI honour
+      it?** Decides whether the queue is truly native (D6) — capture the action type strings
+- [ ] Read the queue from the store and `subscribe()` to changes
+- [ ] Measure seek cost: latency, re-buffer probability, overshoot distribution
+- [ ] Catalogue stable DOM mount anchors and their behaviour across SPA navigation → becomes
+      `inject/selectors.ts`
+- [ ] Determine how ad breaks are detectable from the page, and what the player reports
+- [ ] Verify `ytcfg` is readable and an InnerTube search from page context succeeds
+- [ ] Write `docs/probe-findings.md`; amend `ARCHITECTURE.md` §4.2 if the store write path
+      is a no
+
+### Phase 1 — skeleton: two browsers, one song, no UI
+
+- [ ] Monorepo, TypeScript, Vite, `packages/protocol` with zod schemas
+- [ ] MV3 manifest, three-world scaffolding, nonce-authenticated MAIN ⇄ ISOLATED bridge
+- [ ] Cloudflare Worker + `PartyRoom` Durable Object with WebSocket hibernation
+- [ ] Clock offset estimator and the banded drift controller
+- [ ] Debug overlay — **built now, not later**; it pays for itself within days
+- [ ] Prove p95 drift < 150 ms across two machines for ten minutes, through a network drop
+
+### Phase 2 — parties: create, join, leave, survive
+
+- [ ] Party creation, CSPRNG codes, per-IP rate limits
+- [ ] Join by code and link, nicknames, member list, presence
+- [ ] Reconnect with `resume`, epoch-delta catch-up, identity preservation
+- [ ] Durable Object storage so a party survives eviction; expiry when empty
+- [ ] Full transport command set with concurrency damping, including idempotent `next`
+- [ ] Simulation harness in CI
+
+### Phase 3 — the queue
+
+- [ ] `shadow` adapter first — the permanent fallback that must always work
+- [ ] `native` or `playlist` adapter per the Phase 0 findings, behind a capability probe
+- [ ] Fractional index ordering: add, remove, move, jump-to
+- [ ] Server-side track advance via Durable Object alarms, with quorum early-advance
+- [ ] Search-and-add via InnerTube; "add to party" in YouTube Music's own context menus
+
+### Phase 4 — the UI people actually see
+
+- [ ] Nav-bar entry point, party panel, player-bar badge, attribution toasts (shadow DOM)
+- [ ] SPA-resilient mounting — idempotent, keyed, debounced
+- [ ] Per-member sync and stall status in the member list
+- [ ] Onboarding that states the ad limitation honestly on first run
+- [ ] Keyboard navigation, ARIA labels, focus rings, `prefers-reduced-motion`
+- [ ] Toolbar popup: status, quick join, settings
+
+### Phase 5 — hardening
+
+- [ ] A test for every failure mode in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §8
+- [ ] Ad handling, `waitForAll` option, unplayable-track quorum skip
+- [ ] Background-tab throttling; multi-tab active-tab designation
+- [ ] Abuse limits: joins, commands, nickname sanitisation, room and queue caps
+- [ ] Security review of the bridge, protocol validators, and `textContent` boundaries
+- [ ] Error taxonomy — every failure produces an honest, specific message
+
+### Phase 6 — publish
+
+- [ ] Store listing: screenshots, demo video, privacy policy
+- [ ] A one-sentence justification for every requested permission, written before submitting
+- [ ] Production Cloudflare deploy, custom domain, uptime and error alerting, cost model
+- [ ] Staged rollout with a documented rollback path
+- [ ] Protocol N-1 compatibility window for slow-updating clients
 
 ## The shape of it in one picture
 
