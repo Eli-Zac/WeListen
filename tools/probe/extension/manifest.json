@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "WeListen — Phase 0 probe (scratch, throwaway)",
+  "version": "0.0.1",
+  "description": "Throwaway diagnostic extension. Answers the seven Phase 0 questions in docs/ROADMAP.md by inspecting music.youtube.com's live internals. Not part of the shipped product.",
+  "content_scripts": [
+    {
+      "matches": ["https://music.youtube.com/*"],
+      "js": ["probe.js", "inject.js"],
+      "world": "MAIN",
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://music.youtube.com/*"],
+      "js": ["content.js"],
+      "world": "ISOLATED",
+      "run_at": "document_idle"
+    }
+  ]
+}
