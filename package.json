@@ -12,7 +12,7 @@
     "dev:server": "pnpm --filter @welisten/server dev",
     "dev:extension": "pnpm --filter @welisten/extension dev",
     "test": "pnpm -r test",
-    "test:sim": "pnpm --filter @welisten/server test:sim",
+    "test:sim": "pnpm --filter @welisten/extension test:sim",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint ."
   },

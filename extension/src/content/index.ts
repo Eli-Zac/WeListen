@@ -113,6 +113,18 @@ async function driftTick(): Promise<void> {
   }
 
   const nowMs = Date.now();
+
+  // docs/SYNC.md §3: "the player's reported position immediately after a
+  // seek is not trustworthy" — damping's refractory window (hard seeks only)
+  // exists precisely to mark that period, so skip *measuring* drift during
+  // it too, not just skip issuing a new correction. Recording it anyway
+  // pollutes the drift history with a spurious spike every hard seek (a real
+  // gap the simulation harness caught — extension/src/simulation).
+  if (!damping.canCorrect(nowMs)) {
+    renderOverlay();
+    return;
+  }
+
   const correction = decideCorrection(
     snap.currentTimeMs,
     latestState.nowPlaying,
@@ -125,10 +137,6 @@ async function driftTick(): Promise<void> {
   if (driftHistory.length > HISTORY_LIMIT) driftHistory.shift();
 
   if (correction.type !== 'none') {
-    if (!damping.canCorrect(nowMs)) {
-      renderOverlay();
-      return;
-    }
     damping.beginCorrection(correction.type, nowMs);
     lastCorrections.push(correction);
     if (lastCorrections.length > 50) lastCorrections.shift();
