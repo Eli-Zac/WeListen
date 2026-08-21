@@ -13,8 +13,10 @@ synchronises *what* is playing, *where* in the track, and *what comes next*.
 
 ## Status
 
-**Planning.** No code has been written yet. This repository currently contains the design
-documents that the implementation will follow, and the tracked checklist below. Start here:
+**Phase 0 and Phase 1 in place; Phase 2 not started.** The spike tooling, the monorepo, the
+sync engine, and a `PartyRoom` Durable Object all exist and are tested — see the checklist
+below for exactly what's proven versus still open (real YouTube Music access and a deployed
+Cloudflare account are both unavailable in the environment this was built in). Start here:
 
 | Document | What it covers |
 | --- | --- |
@@ -25,6 +27,21 @@ documents that the implementation will follow, and the tracked checklist below. 
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Decisions made, with reasoning, and the questions still open |
 | [`docs/probe-findings.md`](docs/probe-findings.md) | Phase 0 spike answers — currently unverified, see the note at the top |
 
+## Development
+
+```sh
+pnpm install
+pnpm -r typecheck      # all packages
+pnpm -r test           # unit tests + the sync simulation harness
+pnpm test:sim          # just the simulation harness (docs/SYNC.md §8)
+pnpm --filter @welisten/extension build        # -> extension/dist, load unpacked in chrome://extensions
+pnpm --filter @welisten/extension test:e2e     # real extension, two Chromium profiles, local Worker
+pnpm --filter @welisten/server dev             # wrangler dev, local Worker + Durable Object
+```
+
+`extension/dist` isn't committed — run the build first. The e2e suite starts its own local
+`wrangler dev` and static file server (see `extension/playwright.config.ts`).
+
 ## Next steps
 
 Ordered. Detail and exit criteria for every phase are in
@@ -33,9 +50,10 @@ Ordered. Detail and exit criteria for every phase are in
 ### Blocked on a human, not on code
 
 - [ ] Set `main` as the repository's default branch (Settings → Branches)
-- [ ] Confirm a Cloudflare account is available, and **check the current plan requirements
-      for Durable Objects** before committing to D1 — this is the one cost assumption in the
-      whole design that has not been verified
+- [x] Confirm a Cloudflare account is available — it is; **still need a scoped API token**
+      (`Account.Workers Scripts:Edit` + Durable Objects) to actually deploy `server/`, and to
+      **check the current plan requirements for Durable Objects** before committing to D1 — the
+      one cost assumption in the whole design that has not been verified
 - [ ] Form a position on the YouTube Terms of Service (Q2) — not a blocker for building,
       is a blocker for promoting
 - [ ] Decide the room size cap to start with (Q4)
@@ -72,12 +90,24 @@ Throwaway code in `tools/probe/`. Findings land in `docs/probe-findings.md`.
 
 ### Phase 1 — skeleton: two browsers, one song, no UI
 
-- [ ] Monorepo, TypeScript, Vite, `packages/protocol` with zod schemas
-- [ ] MV3 manifest, three-world scaffolding, nonce-authenticated MAIN ⇄ ISOLATED bridge
-- [ ] Cloudflare Worker + `PartyRoom` Durable Object with WebSocket hibernation
-- [ ] Clock offset estimator and the banded drift controller
-- [ ] Debug overlay — **built now, not later**; it pays for itself within days
-- [ ] Prove p95 drift < 150 ms across two machines for ten minutes, through a network drop
+- [x] Monorepo, TypeScript, Vite, `packages/protocol` with zod schemas
+- [x] MV3 manifest, three-world scaffolding, nonce-authenticated MAIN ⇄ ISOLATED bridge
+- [x] Cloudflare Worker + `PartyRoom` Durable Object with WebSocket hibernation — code complete,
+      passes integration tests against a real local Durable Object (`server/src/party.test.ts`).
+      **Not yet deployed to a real Cloudflare account** — `server/wrangler.toml` targets a new
+      Worker (`welisten-server`), deliberately not the pre-existing unrelated `colisten-server`
+      in the account; deployment needs a scoped API token this environment doesn't have.
+- [x] Clock offset estimator and the banded drift controller
+- [x] Debug overlay — **built now, not later**; renders drift history, clock estimate/confidence,
+      and recent corrections (`docs/SYNC.md` §7)
+- [ ] Prove p95 drift < 150 ms across two machines for ten minutes, through a network drop —
+      **the literal two-real-machines test still needs doing** (this environment has no network
+      access to a second machine or to real YouTube Music). What exists instead: a CI simulation
+      harness (`extension/src/simulation/`) proving the *design* holds p95 drift under 150 ms
+      over a simulated 10-minute run with injected latency/jitter/packet-loss and a fake player,
+      plus an end-to-end test (`extension/tests/e2e/`) loading the real built extension into two
+      independent Chromium profiles against a locally-run Worker, converging on a fake
+      `#movie_player` stand-in. See `docs/probe-findings.md` for what's still open.
 
 ### Phase 2 — parties: create, join, leave, survive
 
