@@ -1,0 +1,103 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>WeListen e2e stub player</title>
+<style>
+  body { font: 14px/1.4 -apple-system, sans-serif; background: #fafafa; padding: 16px; }
+  #readout { font: 12px monospace; white-space: pre; background: #222; color: #0f0; padding: 8px; border-radius: 6px; }
+</style>
+</head>
+<body>
+<h1>WeListen e2e stub player</h1>
+<p>
+  Stands in for YouTube Music's <code>#movie_player</code> where real access is unavailable
+  (see <code>docs/probe-findings.md</code>). A hand-rolled virtual clock, not real media
+  decode — matches the "fake player" language in <code>docs/SYNC.md</code> §8, and needs no
+  video codec support from the test runner.
+</p>
+<div id="readout"></div>
+<script>
+// #movie_player-shaped fake, attached to a real DOM element so
+// document.querySelector('#movie_player') and inject/player.ts work
+// unmodified against it. -1 unstarted, 0 ended, 1 playing, 2 paused,
+// 3 buffering, 5 cued (docs/ARCHITECTURE.md §4.1).
+(function () {
+  var el = document.createElement('div');
+  el.id = 'movie_player';
+  document.body.appendChild(el);
+
+  var DURATION_S = 600;
+  var SEEK_BUFFER_MS = 150;
+
+  var state = 5; // cued
+  var anchorMediaS = 0;
+  var anchorWallMs = performance.now();
+  var rate = 1;
+  var bufferingUntilWallMs = 0;
+
+  function currentTimeS() {
+    if (state !== 1) return anchorMediaS;
+    var elapsedS = ((performance.now() - anchorWallMs) / 1000) * rate;
+    return Math.min(DURATION_S, anchorMediaS + elapsedS);
+  }
+
+  function reanchor() {
+    anchorMediaS = currentTimeS();
+    anchorWallMs = performance.now();
+  }
+
+  el.playVideo = function () {
+    if (performance.now() < bufferingUntilWallMs) return; // still buffering
+    reanchor();
+    state = 1;
+  };
+  el.pauseVideo = function () {
+    reanchor();
+    state = 2;
+  };
+  el.seekTo = function (seconds) {
+    var wasPlaying = state === 1;
+    anchorMediaS = Math.max(0, Math.min(DURATION_S, seconds));
+    anchorWallMs = performance.now();
+    bufferingUntilWallMs = performance.now() + SEEK_BUFFER_MS;
+    state = 3; // buffering
+    setTimeout(function () {
+      if (performance.now() < bufferingUntilWallMs) return; // superseded by a later seek
+      state = wasPlaying ? 1 : 2;
+      anchorWallMs = performance.now();
+    }, SEEK_BUFFER_MS + 5);
+  };
+  el.getCurrentTime = function () {
+    if (state === 3) return anchorMediaS;
+    return currentTimeS();
+  };
+  el.getDuration = function () {
+    return DURATION_S;
+  };
+  el.getPlayerState = function () {
+    return state;
+  };
+  el.getVideoData = function () {
+    return { video_id: 'phase1-stub-track', title: 'Phase 1 stub track', author: 'WeListen' };
+  };
+  el.setPlaybackRate = function (r) {
+    reanchor();
+    rate = r;
+  };
+  el.getPlaybackRate = function () {
+    return rate;
+  };
+
+  var readout = document.getElementById('readout');
+  setInterval(function () {
+    readout.textContent =
+      'state=' + state +
+      '  t=' + currentTimeS().toFixed(2) + 's' +
+      '  rate=' + rate.toFixed(3) +
+      '  videoId=' + el.getVideoData().video_id;
+  }, 100);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+{
+  "name": "@welisten/extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "vitest run",
+    "test:sim": "vitest run src/simulation",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@welisten/protocol": "workspace:*",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@types/chrome": "^0.2.6",
+    "@types/node": "^22.15.17",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.3",
+    "vitest": "^4.1.11"
+  }
+}

@@ -13,8 +13,10 @@ synchronises *what* is playing, *where* in the track, and *what comes next*.
 
 ## Status
 
-**Planning.** No code has been written yet. This repository currently contains the design
-documents that the implementation will follow, and the tracked checklist below. Start here:
+**Phase 0 and Phase 1 in place; Phase 2 not started.** The spike tooling, the monorepo, the
+sync engine, and a `PartyRoom` Durable Object all exist and are tested — see the checklist
+below for exactly what's proven versus still open (real YouTube Music access and a deployed
+Cloudflare account are both unavailable in the environment this was built in). Start here:
 
 | Document | What it covers |
 | --- | --- |
@@ -23,6 +25,22 @@ documents that the implementation will follow, and the tracked checklist below. 
 | [`docs/SYNC.md`](docs/SYNC.md) | The clock-sync and drift-correction algorithm — the hard part |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Phased milestones from spike to Chrome Web Store listing |
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | Decisions made, with reasoning, and the questions still open |
+| [`docs/probe-findings.md`](docs/probe-findings.md) | Phase 0 spike answers — currently unverified, see the note at the top |
+
+## Development
+
+```sh
+pnpm install
+pnpm -r typecheck      # all packages
+pnpm -r test           # unit tests + the sync simulation harness
+pnpm test:sim          # just the simulation harness (docs/SYNC.md §8)
+pnpm --filter @welisten/extension build        # -> extension/dist, load unpacked in chrome://extensions
+pnpm --filter @welisten/extension test:e2e     # real extension, two Chromium profiles, local Worker
+pnpm --filter @welisten/server dev             # wrangler dev, local Worker + Durable Object
+```
+
+`extension/dist` isn't committed — run the build first. The e2e suite starts its own local
+`wrangler dev` and static file server (see `extension/playwright.config.ts`).
 
 ## Next steps
 
@@ -32,44 +50,64 @@ Ordered. Detail and exit criteria for every phase are in
 ### Blocked on a human, not on code
 
 - [ ] Set `main` as the repository's default branch (Settings → Branches)
-- [ ] Pick a licence and add `LICENSE` — open question Q1 in [`docs/DECISIONS.md`](docs/DECISIONS.md)
-- [ ] Confirm a Cloudflare account is available, and **check the current plan requirements
-      for Durable Objects** before committing to D1 — this is the one cost assumption in the
-      whole design that has not been verified
+- [x] Confirm a Cloudflare account is available — it is; **still need a scoped API token**
+      (`Account.Workers Scripts:Edit` + Durable Objects) to actually deploy `server/`, and to
+      **check the current plan requirements for Durable Objects** before committing to D1 — the
+      one cost assumption in the whole design that has not been verified
 - [ ] Form a position on the YouTube Terms of Service (Q2) — not a blocker for building,
       is a blocker for promoting
 - [ ] Decide the room size cap to start with (Q4)
 
-### Phase 0 — spike YouTube Music's internals ← **this is the actual next work**
+### Phase 0 — spike YouTube Music's internals
 
-Throwaway code in `tools/probe/`. Findings land in `docs/probe-findings.md`. Two of these
-answers can change the architecture, which is why nothing else starts first.
+Throwaway code in `tools/probe/`. Findings land in `docs/probe-findings.md`.
 
-- [ ] Scaffold `tools/probe/` — bookmarklet + scratch extension, no build step
-- [ ] Confirm `#movie_player` exposes `seekTo` / `getCurrentTime` / `getPlayerState` /
-      `getVideoData` / `loadVideoById`; measure `getCurrentTime()` resolution and jitter
-- [ ] **Does `setPlaybackRate()` honour 1.02, or snap to presets?** Decides whether the
-      inaudible drift correction in [`docs/SYNC.md`](docs/SYNC.md) §3 ships, or falls back
-      to seek-only
-- [ ] **Can we `dispatch()` a queue mutation to `ytmusic-app.store` and have the UI honour
-      it?** Decides whether the queue is truly native (D6) — capture the action type strings
-- [ ] Read the queue from the store and `subscribe()` to changes
-- [ ] Measure seek cost: latency, re-buffer probability, overshoot distribution
-- [ ] Catalogue stable DOM mount anchors and their behaviour across SPA navigation → becomes
-      `inject/selectors.ts`
-- [ ] Determine how ad breaks are detectable from the page, and what the player reports
-- [ ] Verify `ytcfg` is readable and an InnerTube search from page context succeeds
-- [ ] Write `docs/probe-findings.md`; amend `ARCHITECTURE.md` §4.2 if the store write path
-      is a no
+- [x] Scaffold `tools/probe/` — bookmarklet + scratch extension, no build step
+- [x] Write `docs/probe-findings.md` — **currently from public knowledge, not a live run**:
+      this environment's network policy blocks `music.youtube.com` outright, so nothing here
+      could actually reach the site. All seven questions below are answered provisionally with
+      a stated confidence level; re-run the tooling in `tools/probe/` somewhere with real
+      access and replace the doc before trusting any of it. `ARCHITECTURE.md` §4.2 is
+      unchanged since Q3's write path came back genuinely unknown, not a definite no.
+- [ ] *(needs a live run)* Confirm `#movie_player` exposes `seekTo` / `getCurrentTime` /
+      `getPlayerState` / `getVideoData` / `loadVideoById`; measure `getCurrentTime()`
+      resolution and jitter
+- [ ] *(needs a live run)* **Does `setPlaybackRate()` honour 1.02, or snap to presets?**
+      Decides whether the inaudible drift correction in [`docs/SYNC.md`](docs/SYNC.md) §3
+      ships, or falls back to seek-only
+- [ ] *(needs a live run)* **Can we `dispatch()` a queue mutation to `ytmusic-app.store` and
+      have the UI honour it?** Decides whether the queue is truly native (D6) — capture the
+      action type strings. Not a Phase 1 blocker; blocks Phase 3.
+- [ ] *(needs a live run)* Read the queue from the store and `subscribe()` to changes
+- [ ] *(needs a live run)* Measure seek cost: latency, re-buffer probability, overshoot
+      distribution
+- [ ] *(needs a live run)* Catalogue stable DOM mount anchors and their behaviour across SPA
+      navigation → becomes `inject/selectors.ts`
+- [ ] *(needs a live run)* Determine how ad breaks are detectable from the page, and what the
+      player reports
+- [ ] *(needs a live run)* Verify `ytcfg` is readable and an InnerTube search from page
+      context succeeds
 
 ### Phase 1 — skeleton: two browsers, one song, no UI
 
-- [ ] Monorepo, TypeScript, Vite, `packages/protocol` with zod schemas
-- [ ] MV3 manifest, three-world scaffolding, nonce-authenticated MAIN ⇄ ISOLATED bridge
-- [ ] Cloudflare Worker + `PartyRoom` Durable Object with WebSocket hibernation
-- [ ] Clock offset estimator and the banded drift controller
-- [ ] Debug overlay — **built now, not later**; it pays for itself within days
-- [ ] Prove p95 drift < 150 ms across two machines for ten minutes, through a network drop
+- [x] Monorepo, TypeScript, Vite, `packages/protocol` with zod schemas
+- [x] MV3 manifest, three-world scaffolding, nonce-authenticated MAIN ⇄ ISOLATED bridge
+- [x] Cloudflare Worker + `PartyRoom` Durable Object with WebSocket hibernation — code complete,
+      passes integration tests against a real local Durable Object (`server/src/party.test.ts`).
+      **Not yet deployed to a real Cloudflare account** — `server/wrangler.toml` targets a new
+      Worker (`welisten-server`), deliberately not the pre-existing unrelated `colisten-server`
+      in the account; deployment needs a scoped API token this environment doesn't have.
+- [x] Clock offset estimator and the banded drift controller
+- [x] Debug overlay — **built now, not later**; renders drift history, clock estimate/confidence,
+      and recent corrections (`docs/SYNC.md` §7)
+- [ ] Prove p95 drift < 150 ms across two machines for ten minutes, through a network drop —
+      **the literal two-real-machines test still needs doing** (this environment has no network
+      access to a second machine or to real YouTube Music). What exists instead: a CI simulation
+      harness (`extension/src/simulation/`) proving the *design* holds p95 drift under 150 ms
+      over a simulated 10-minute run with injected latency/jitter/packet-loss and a fake player,
+      plus an end-to-end test (`extension/tests/e2e/`) loading the real built extension into two
+      independent Chromium profiles against a locally-run Worker, converging on a fake
+      `#movie_player` stand-in. See `docs/probe-findings.md` for what's still open.
 
 ### Phase 2 — parties: create, join, leave, survive
 
@@ -152,4 +190,4 @@ These are settled; the reasoning for each is in [`docs/DECISIONS.md`](docs/DECIS
 
 ## Licence
 
-Not yet chosen — see the open questions in [`docs/DECISIONS.md`](docs/DECISIONS.md).
+MIT — see [`LICENSE`](LICENSE).

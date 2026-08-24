@@ -1,0 +1,16 @@
+name = "welisten-server"
+main = "src/index.ts"
+compatibility_date = "2026-08-21"
+
+[[durable_objects.bindings]]
+name = "PARTY_ROOM"
+class_name = "PartyRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["PartyRoom"]
+
+# Phase 1 has one hardcoded party ("PHASE1") and no persistent world beyond
+# the Durable Object's own storage — no D1, no KV, nothing else to bind yet.
+# Party creation (POST /v1/party), rate limiting, and per-IP quotas are
+# Phase 2 (docs/ROADMAP.md).

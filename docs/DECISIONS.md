@@ -174,8 +174,8 @@ introduces cross-tab leader election, which is more total complexity than the fa
 
 ## Open questions
 
-**Q1 — Licence.** Not chosen. MIT or Apache-2.0 for adoption; a copyleft licence if
-closed-source forks are a concern. Needs deciding before the repository goes public.
+**Q1 — Licence.** Decided: MIT. Chosen for adoption — no restriction on closed-source use or
+forks, minimal friction for anyone who wants to build on this. See `LICENSE`.
 
 **Q2 — Terms of service.** WeListen plays no audio of its own: every participant streams from
 their own YouTube Music session on their own account, exactly as if they had clicked play
